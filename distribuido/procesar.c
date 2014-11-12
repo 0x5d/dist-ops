@@ -32,7 +32,7 @@ void procesarText(char *text, int* p1, int* p2, char* op) {
 	*p1 = atoi(sp1);
 	*p2 = atoi(sp2);
 
-//printf("%d %c %d\n", *p1, *op, *p2);
+	//printf("%d %c %d\n", *p1, *op, *p2);
 }
 
 int operacion(int p1, char op, int p2) {
@@ -44,7 +44,7 @@ else if (op=='-')
 else if (op=='*')
 	result = p1*p2;
 else if (op=='/')
-	result = p1+p2;
+	result = p1/(p2 + 1);
 return result;
 }
  
@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
     char NAME[MPI_MAX_PROCESSOR_NAME];
 	MPI_Get_processor_name(NAME, &LEN);
     NUM_WORKERS = NUM_PROCS - 1;
-	printf("Hello! I'm process %i out of %i processes, on host %s\n.",
+	printf("Hello! I'm process %i out of %i processes, on host.%s\n",
            TASK_ID, NUM_PROCS, NAME);
 
  
@@ -96,27 +96,23 @@ int main(int argc, char* argv[])
 	 		fgets(linea_in, 100, archivo_in);
 	 		exps.push_back(linea_in);
  		}
-	 	int numExpr = 1;
-	 	int procID = 1;
- 		for (int i = 0; i < exps.size() - 1; i++){
+	 	int numExps = exps.size() - 1;
+	 	int procID = 0;
+	 	for (int i = 0; i < numExps; i++){
 	 		int* params = new int[2];
 	 		char op;
  			procesarText(exps[i], &params[0], &params[1], &op);
-	 		//printf("%d %d\n", params[0], params[1]);
-	 		int numExps = exps.size() - 1;
-	 		MPI_Send(&numExps, 1, MPI_INT, procID, FROM_MASTER_N, MPI_COMM_WORLD);
-	 		MPI_Send(&params[0], 2, MPI_INT, procID, FROM_MASTER_P, MPI_COMM_WORLD);
-	 		MPI_Send(&op, 1, MPI_CHAR, procID, FROM_MASTER_OP, MPI_COMM_WORLD);
+	 		MPI_Send(&numExps, 1, MPI_INT, procID + 1, FROM_MASTER_N, MPI_COMM_WORLD);
+	 		MPI_Send(&params[0], 2, MPI_INT, procID + 1, FROM_MASTER_P, MPI_COMM_WORLD);
+	 		MPI_Send(&op, 1, MPI_CHAR, procID +1, FROM_MASTER_OP, MPI_COMM_WORLD);
+	 		procID++;
+	 		procID %= NUM_WORKERS;
 
-	 		numExpr++;
-	 		procID = numExpr % NUM_WORKERS + 1;
-			
  		}
- 		for(numExpr- 1; numExpr > 0; numExpr--){
-    		int res;
-            MPI_Recv(&res, 1, MPI_INT, MPI_ANY_SOURCE, FROM_WORKER, MPI_COMM_WORLD, &status);
-			sprintf(linea_out,"%d%c%d=%d\n",P1, OP, P2,res);
-			fputs(linea_out, archivo_out);
+ 		for(int i = numExps - 1; i >= 0; i--){
+ 			char *strres = new char[100];
+            MPI_Recv(strres, 100, MPI::CHAR, MPI_ANY_SOURCE, 10, MPI_COMM_WORLD, &status);
+			fputs(strres, archivo_out);
  		}
 
         fclose(archivo_in);
@@ -124,16 +120,19 @@ int main(int argc, char* argv[])
 
  	}
  	else {
+		char linea_out[100];
  		int numExprs;
  		MPI_Recv(&numExprs, 1, MPI_INT, MASTER, FROM_MASTER_N, MPI_COMM_WORLD, &status);
- 		for(int i = TASK_ID; i < numExprs; i += NUM_PROCS){
+ 		int count = 0;
+ 		for(int i = TASK_ID - 1; i < numExprs; i += NUM_WORKERS){
 	 		int* params = new int[2];
 	 		MPI_Recv(&params[0], 2, MPI_INT, MASTER, FROM_MASTER_P, MPI_COMM_WORLD, &status);
 	 		char op;
 	 		MPI_Recv(&op, 1, MPI_CHAR, MASTER, FROM_MASTER_OP, MPI_COMM_WORLD, &status);
-	 		//printf("%d%c%d\n", params[0], op, params[1]);
+	 		//printf("%i\n", i);
 	 		int res = operacion(params[0], op, params[1]);
-	 		MPI_Send(&res, 1, MPI_INT, TASK_ID, FROM_WORKER, MPI_COMM_WORLD);
+	 		sprintf(linea_out, "%d%c%d=%d\n", params[0], op, params[1], res);
+	 		MPI_Send(linea_out, 100, MPI_CHAR, MASTER, 10, MPI_COMM_WORLD);
  		}
  		
  	}
