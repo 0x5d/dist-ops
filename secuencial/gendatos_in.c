@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
  	{
 		p1 = rand()*100;
 		p2 = rand()*100;
-		valop=rand()*100;
+		valop=rand() % 256;
 		if (valop>192)
 			op='/';
 		else if (valop>128)
